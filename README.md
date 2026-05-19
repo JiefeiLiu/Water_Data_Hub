@@ -1,2 +1,2 @@
-# Water_Hub
+# Brackish Water Hub Project
 Brackish Water Hub Project
