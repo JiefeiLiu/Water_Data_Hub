@@ -153,11 +153,55 @@ VALUE_EXPANSIONS = {
         "ocean": "Seawater",
         "WWTP": "Wastewater treatment plant",
     },
+    "DISPOSAL CONCENTRATE": {
+        "surface": "Surface water discharge",
+        "sewer": "Sewer discharge",
+        "DWI": "Deep well injection",
+        "EP": "Evaporation pond",
+        "LA": "Land application",
+        "outfall": "Outfall",
+        "DWI/sewer": "Deep well injection / sewer discharge",
+        "EP and sewer": "Evaporation pond and sewer discharge",
+        "surface (lake)": "Surface water discharge (lake)",
+        "surface (to Great Salt Lake)": "Surface water discharge (to Great Salt Lake)",
+    },
     "FATE OF WASTEWATER CLEANING": {
         "DWI": "Deep well injection",
         "DWI (haven't cleaned yet)": "Deep well injection (haven't cleaned yet)",
         "neutralize, DWI": "neutralization, deep well injection",
     },
+}
+
+TEXT_REPLACEMENTS = {
+    "DISPOSAL CONCENTRATE": [
+        (r"\b(?-i:LA)(?=\s+sanitation\b)", "Los Angeles"),
+        (r"^LA(?=\s*\()", "Land application"),
+        (r"\b(?-i:DWI)\b", "Deep well injection"),
+        (r"\b(?-i:WWTP)\b", "wastewater treatment plant"),
+        (r"\b(?-i:OCSD)\b", "Orange County Sanitation District"),
+        (r"\b(?-i:OO)\b", "ocean outfall"),
+        (r"\b(?-i:OF)\b", "outfall"),
+        (r"\b(?-i:NF)\b", "nanofiltration"),
+        (r"\bsurface\b", "surface water discharge"),
+    ],
+    "DESAL REASON / TREATMENT": [
+        (r"\bTDS\b", "total dissolved solids"),
+        (r"\bTOC\b", "total organic carbon"),
+        (r"\bH2S\b", "hydrogen sulfide"),
+        (r"\bTHMs\b", "trihalomethanes"),
+        (r"\bTHM\b", "trihalomethane"),
+        (r"\bHAA%?", "haloacetic acids"),
+        (r"\bSO4\b", "sulfate"),
+        (r"\bNH3\b", "ammonia"),
+        (r"\bFe\b", "iron"),
+        (r"\bMn\b", "manganese"),
+        (r"\bAs\b", "arsenic"),
+        (r"\bF\b", "fluoride"),
+        (r"\bIX\b", "ion exchange"),
+        (r"\bLS\b", "lime softening"),
+        (r"\bIPR\b", "indirect potable reuse"),
+        (r"\bDW\b", "drinking water"),
+    ],
 }
 
 CONDUCTIVITY_TO_TDS_FACTOR = 0.64
@@ -447,7 +491,22 @@ def looks_like_state_code(value: str) -> bool:
 
 def expand_output_value(column_name: str, value: str) -> str:
     value = value.strip()
-    return VALUE_EXPANSIONS.get(column_name, {}).get(value, value)
+    column_expansions = VALUE_EXPANSIONS.get(column_name, {})
+    if value in column_expansions:
+        return column_expansions[value]
+
+    expanded = value
+    for pattern, replacement in TEXT_REPLACEMENTS.get(column_name, []):
+        expanded = re.sub(pattern, replacement, expanded, flags=re.IGNORECASE)
+    return expanded
+
+
+def clean_output_text(value: str) -> str:
+    value = re.sub(r"\s+", " ", value)
+    value = re.sub(r"\s+([,;)])", r"\1", value)
+    value = re.sub(r"(\()\s+", r"\1", value)
+    value = re.sub(r";\s*", "; ", value)
+    return value.strip()
 
 
 def format_number(value: float) -> str:
@@ -501,6 +560,7 @@ def output_value(column_name: str, value: str) -> str:
         return value if value else "none"
 
     value = expand_output_value(column_name, value)
+    value = clean_output_text(value)
     return value if value else "none"
 
 
