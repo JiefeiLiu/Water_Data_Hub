@@ -88,6 +88,45 @@ The converter expands short codes in selected columns before writing the CSV fil
 | `DWI (haven't cleaned yet)` | Deep well injection (haven't cleaned yet) |
 | `neutralize, DWI` | neutralization, deep well injection |
 
+### DISPOSAL CONCENTRATE
+
+| Source value | CSV value |
+| --- | --- |
+| `surface` | Surface water discharge |
+| `sewer` | Sewer discharge |
+| `DWI` | Deep well injection |
+| `EP` | Evaporation pond |
+| `LA` | Land application |
+| `DWI/sewer` | Deep well injection / sewer discharge |
+| `EP and sewer` | Evaporation pond and sewer discharge |
+| `LA sanitation` inside longer text | Los Angeles sanitation |
+| `WWTP` inside longer text | wastewater treatment plant |
+| `OCSD` inside longer text | Orange County Sanitation District |
+| `OO` inside longer text | ocean outfall |
+| `OF` inside longer text | outfall |
+| `NF` inside longer text | nanofiltration |
+
+### DESAL REASON / TREATMENT
+
+| Source value | CSV value |
+| --- | --- |
+| `TDS` | total dissolved solids |
+| `TOC` | total organic carbon |
+| `H2S` | hydrogen sulfide |
+| `THM` | trihalomethane |
+| `THMs` | trihalomethanes |
+| `HAA` or `HAA%` | haloacetic acids |
+| `SO4` | sulfate |
+| `NH3` | ammonia |
+| `Fe` | iron |
+| `Mn` | manganese |
+| `As` | arsenic |
+| `F` | fluoride |
+| `IX` | ion exchange |
+| `LS` | lime softening |
+| `IPR` | indirect potable reuse |
+| `DW` | drinking water |
+
 Blank output cells in all columns are converted to `none`.
 
 ## Unit Standardization
