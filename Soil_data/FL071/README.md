@@ -1,16 +1,192 @@
 # FL071 Soil Data
 
-This folder contains the SSURGO export for soil survey area `FL071`, Lee County, Florida. The processed file in `outputs/` joins map-unit polygon locations with representative component and surface-horizon soil attributes from the SSURGO tabular data.
+This folder contains the SSURGO export for soil survey area `FL071`, Lee County, Florida. Treat it as a small relational soil database rather than a single flat feature table.
 
-## Main Output
+The current recommended workflow is:
+
+1. Review the database inventory below.
+2. Ask a domain expert to choose which SSURGO files/tables are useful for the project.
+3. Export or join only the selected tables into analysis-ready features.
+4. Add final feature-name explanations after the selected feature set is known.
+
+## Data Inventory
+
+FL071 contains spatial layers, soil map-unit/component/horizon tables, interpretation tables, vegetation/productivity tables, crop/yield tables, and metadata tables.
+
+For the complete machine-readable list of exported CSVs, row counts, and column counts, use:
+
+```text
+outputs/full_database/_export_manifest.csv
+```
+
+### Spatial Data
+
+These files describe locations and geometry. The `.shp` files store geometry, while the full-database CSV export stores the matching `.dbf` attributes.
+
+| Layer | Files / export | What it represents |
+| --- | --- | --- |
+| Map-unit polygons | `spatial/soilmu_a_fl071.*`, `outputs/full_database/spatial/soilmu_a.csv` | Soil map-unit polygon areas; main layer for polygon joins to sample coordinates. |
+| Map-unit lines | `spatial/soilmu_l_fl071.*`, `outputs/full_database/spatial/soilmu_l.csv` | Linear map-unit features, empty in this FL071 export. |
+| Map-unit points | `spatial/soilmu_p_fl071.*`, `outputs/full_database/spatial/soilmu_p.csv` | Point map-unit features, empty in this FL071 export. |
+| Survey-area polygon | `spatial/soilsa_a_fl071.*`, `outputs/full_database/spatial/soilsa_a.csv` | Boundary of the FL071 soil survey area. |
+| Special feature lines | `spatial/soilsf_l_fl071.*`, `outputs/full_database/spatial/soilsf_l.csv` | Linear special soil features, empty in this FL071 export. |
+| Special feature points | `spatial/soilsf_p_fl071.*`, `outputs/full_database/spatial/soilsf_p.csv` | Point special soil features. |
+
+### Core Soil Tables
+
+These are usually the first tables to inspect for coordinate-based matching.
+
+| Table | File | What it contains |
+| --- | --- | --- |
+| Legend | `legend.csv` / `legend.txt` | Soil survey area legend information. |
+| Mapunit | `mapunit.csv` / `mapunit.txt` | Map-unit records keyed by `mukey`; links spatial polygons to soil descriptions. |
+| Component | `comp.csv` / `comp.txt` | Soil components within each map unit, keyed by `cokey`; includes component percentages, landform/taxonomy fields, hydric rating, slope, drainage, and related component-level properties. |
+| Horizon | `chorizon.csv` / `chorizon.txt` | Horizon-level physical and chemical properties keyed by `chkey`; includes depth, texture fractions, bulk density, available water capacity, Ksat, pH, CEC, ECEC, carbonates, gypsum, SAR, EC, phosphorus, and other low/representative/high values. |
+
+### Horizon Detail Tables
+
+These add detail below the horizon level and usually join through `chkey`.
+
+| Data kind | Tables |
+| --- | --- |
+| Texture and modifiers | `chtexgrp`, `chtextur`, `chtexmod` |
+| Structure | `chstrgrp`, `chstr` |
+| Fragments and pores | `chfrags`, `chpores` |
+| Consistence and horizon designations | `chconsis`, `chdsuffx` |
+| Engineering classifications | `chaashto`, `chunifie` |
+| Horizon narrative text | `chtext` |
+
+### Component Detail Tables
+
+These describe component-level ecology, geomorphology, hydrology, parent material, restrictions, taxonomy, vegetation, and management information. They usually join through `cokey`.
+
+| Data kind | Tables |
+| --- | --- |
+| Ecological classification and plants | `cecoclas`, `ceplants`, `ccancov` |
+| Geomorphic and surface morphology | `cgeomord`, `csmorgc`, `csmorhpp`, `csmormr`, `csmorss` |
+| Parent material | `cpmat`, `cpmatgrp` |
+| Hydric and diagnostic features | `chydcrit`, `cdfeat` |
+| Restrictions and surface fragments | `crstrcts`, `csfrags` |
+| Monthly moisture, temperature, flooding, and ponding | `cmonth`, `csmoist`, `cstemp` |
+| Erosion | `cerosnac` |
+| Taxonomy details | `ctxfmmin`, `ctxfmoth`, `ctxmoicl` |
+| Component narrative text | `ctext` |
+
+### Productivity, Crop, And Management Tables
+
+These are useful if the analysis needs vegetation, crop yield, forestry, or windbreak information.
+
+| Data kind | Tables |
+| --- | --- |
+| Component crop yield | `ccrpyd` |
+| Mapunit crop yield | `mucrpyd` |
+| Forest productivity | `cfprod`, `cfprodo` |
+| Trees to manage | `ctreestm` |
+| Potential windbreak species | `cpwndbrk` |
+
+### Interpretation And Soil Data Viewer Tables
+
+These contain generated interpretations and metadata for Soil Data Viewer style attributes. They can be useful, but they are large and often need careful filtering by interpretation name or attribute.
+
+| Data kind | Tables |
+| --- | --- |
+| Component interpretations | `cinterp` |
+| Survey-area interpretations | `sainterp` |
+| Soil Data Viewer attributes and folders | `sdvattribute`, `sdvfolder`, `sdvfolderattribute`, `sdvalgorithm` |
+| Distribution metadata | `distmd`, `distlmd`, `distimd` |
+
+### Area Overlap And Mapunit Aggregate Tables
+
+These provide pre-aggregated or area-overlap information.
+
+| Data kind | Tables |
+| --- | --- |
+| Mapunit aggregated attributes | `muaggatt` |
+| Legend area overlap | `lareao` |
+| Mapunit area overlap | `muareao` |
+| Mapunit text | `mutext` |
+| Legend text | `ltext` |
+
+### Database Metadata Tables
+
+These describe the database schema, domains, indexes, relationships, and column meanings. They are important for understanding table keys and valid values.
+
+| Data kind | Tables |
+| --- | --- |
+| Table and column metadata | `mstab`, `mstabcol` |
+| Domain metadata | `msdommas`, `msdomdet` |
+| Index metadata | `msidxmas`, `msidxdet` |
+| Relationship metadata | `msrsmas`, `msrsdet` |
+| Survey catalog and version | `sacatlog`, `version` |
+
+## Full Database Export
+
+`outputs/full_database/`
+
+This folder is a full CSV export of the FL071 SSURGO mini-database. It includes every tabular text table and every spatial DBF attribute table, with metadata-derived column names where available.
+
+- `tabular/*.csv`: all FL071 SSURGO tabular tables.
+- `spatial/*.csv`: spatial DBF attribute tables, including `soilmu_a.csv`.
+- `_export_manifest.csv`: exported table list with row and column counts.
+
+The validation run exported 74 CSV tables and 416,657 total rows. The original shapefile geometry is still stored in `spatial/*.shp`; the full database CSV export stores the spatial DBF attributes, not full polygon geometry.
+
+To regenerate the full database CSV export, run:
+
+```bash
+python Soil_data/extract_fl071_soil_values.py --full-database --replace
+```
+
+## Analysis-Ready Sample Output
 
 `outputs/fl071_mapunit_centroid_soil_values.csv`
 
-Each row represents one FL071 map-unit polygon. The `longitude` and `latitude` fields are the polygon centroid coordinates in WGS84. Soil values are taken from the dominant/major representative component for the map unit, then from that component's surface horizon.
+This is a small example feature table, not the full database. Each row represents one FL071 map-unit polygon. The `longitude` and `latitude` fields are polygon centroid coordinates in WGS84. Soil values are taken from the dominant/major representative component for the map unit, then from that component's surface horizon.
 
 The file has 11,761 data rows plus a header row.
 
-## Feature Name Explanations
+Regenerate it with:
+
+```bash
+python Soil_data/extract_fl071_soil_values.py
+```
+
+## Source Files
+
+- `spatial/soilmu_a_fl071.shp` and `spatial/soilmu_a_fl071.dbf`: map-unit polygon geometry and attributes.
+- `tabular/mapunit.txt`: map-unit names and keys.
+- `tabular/comp.txt`: soil components and representative component percentages.
+- `tabular/chorizon.txt`: horizon depths and soil chemical attributes.
+- `tabular/mstab.txt`: table-level SSURGO metadata.
+- `tabular/mstabcol.txt`: column-level SSURGO metadata.
+
+## Generation Script
+
+The extraction script is `../extract_fl071_soil_values.py`.
+
+Supported modes:
+
+- Default: write one row per map-unit polygon centroid.
+- `--points-csv`: append representative soil attributes to an input point CSV with longitude/latitude columns.
+- `--full-database`: export every tabular table and spatial DBF attribute table to CSV files.
+
+## Downloading Source Data
+
+The raw SSURGO export can be downloaded with `../download_ssurgo.py` after copying the zip URL from Web Soil Survey's Download Soils Data tab:
+
+```bash
+python Soil_data/download_ssurgo.py FL071 --url "https://websoilsurvey.sc.egov.usda.gov/DSD/Download/..."
+```
+
+If Web Soil Survey has a standard cached file available, the URL can be omitted and the script will try the common SSURGO cache patterns:
+
+```bash
+python Soil_data/download_ssurgo.py FL071 --replace
+```
+
+## Sample Feature Name Reference
+
+This section documents the current analysis-ready sample output only. After an expert selects the final SSURGO tables/features, this section should be replaced or expanded with the final feature definitions.
 
 | Feature name | Meaning | Unit / notes |
 | --- | --- | --- |
@@ -39,20 +215,6 @@ The file has 11,761 data rows plus a header row.
 | `ph2osoluble_r` | Representative water-soluble phosphorus. | Milligrams per kilogram |
 | `ptotal_r` | Representative total phosphorus content. | Percent |
 
-## Naming Notes
-
-SSURGO column suffixes often use `_r`, `_l`, and `_h` for representative, low, and high values. This output keeps the representative values only, so columns ending in `_r` should be interpreted as typical values for the selected component and horizon.
+SSURGO column suffixes often use `_r`, `_l`, and `_h` for representative, low, and high values. The sample output keeps representative values only, so columns ending in `_r` should be interpreted as typical values for the selected component and horizon.
 
 Blank cells mean the attribute was not populated in the original FL071 SSURGO tabular data for that map unit, component, or horizon.
-
-## Source Files
-
-- `spatial/soilmu_a_fl071.shp` and `spatial/soilmu_a_fl071.dbf`: map-unit polygon geometry and attributes.
-- `tabular/mapunit.txt`: map-unit names and keys.
-- `tabular/comp.txt`: soil components and representative component percentages.
-- `tabular/chorizon.txt`: horizon depths and soil chemical attributes.
-- `tabular/mstabcol.txt`: SSURGO metadata used for column definitions.
-
-## Generation Script
-
-The processed CSV is generated by `../extract_fl071_soil_values.py`. By default, the script writes one row per map-unit polygon centroid. It can also append the same soil attributes to an input point CSV when longitude and latitude columns are supplied.
