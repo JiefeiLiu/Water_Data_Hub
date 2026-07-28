@@ -2,13 +2,20 @@
 
 This directory downloads Water Quality Portal (WQP) sample results for the state/county locations in the public dataset, matches each public row to nearby WQP monitoring stations, and merges aggregated water-quality features back into the public dataset.
 
-**End product:** the public dataset with water-quality feature columns appended.
+**End product:** the public dataset with water-quality feature columns appended (plus a `soil_match_mukey` column linking to the soil pipeline).
 
 ```text
-public_data/report207appendixA_all_tables_labeled_acc_wqp_features.csv
+public_data/processed_data/report207appendixA_all_tables_labeled_acc_wqp_features.csv
 ```
 
 ---
+
+## Folder Layout
+
+- `metadata/` — manifests and registries: `public_data_wqp_manifest.csv`, `public_data_wqp_unmatched.csv`, `public_data_wqp_downloaded_counties.json`, and the `targeted_missing_wqp_*` recovery files.
+- `outputs/` — derived reports: count summary, feature manifest, missingness report.
+- `wqp_result_zips/`, `wqp_station_zips/` — raw downloads.
+- Source public dataset lives in `public_data/metadata/`; matched outputs land in `public_data/processed_data/`.
 
 ## Pipeline Overview
 
@@ -16,12 +23,12 @@ The process is four steps. Each step reads the previous step's output, so they m
 
 | # | Step | Script | Reads | Writes |
 |---|------|--------|-------|--------|
-| 1 | **Download** WQP results by state/county | `download_public_data_wqp.py` | `public_data/report207appendixA_all_tables.csv` | `wqp_result_zips/`, `public_data_wqp_manifest.csv` |
-| 2 | **Match** public coordinates to WQP stations | `match_public_data_wqp_locations.py` | `..._labeled_acc.csv` + `wqp_result_zips/` | `..._wqp_location_matches.csv` |
-| 3 | **Merge** aggregated features into the dataset | `add_public_data_wqp_features.py` | `..._wqp_location_matches.csv` | `..._wqp_features.csv` |
-| 4 | **Check** missing values | `print_public_data_missingness.py` | `..._wqp_features.csv` | `outputs/public_data_wqp_feature_missingness.csv` |
+| 1 | **Download** WQP results by state/county | `download_public_data_wqp.py` | `public_data/metadata/report207appendixA_all_tables.csv` | `wqp_result_zips/`, `metadata/public_data_wqp_manifest.csv` |
+| 2 | **Match** public coordinates to WQP stations | `match_public_data_wqp_locations.py` | `metadata/..._labeled_acc.csv` + `wqp_result_zips/` | `processed_data/..._wqp_location_matches.csv` |
+| 3 | **Merge** aggregated features into the dataset | `add_public_data_wqp_features.py` | `processed_data/..._wqp_location_matches.csv` | `processed_data/..._wqp_features.csv` |
+| 4 | **Check** missing values | `print_public_data_missingness.py` | `processed_data/..._wqp_features.csv` | `outputs/public_data_wqp_feature_missingness.csv` |
 
-All paths above are relative to the repo root; `...` is `public_data/report207appendixA_all_tables_labeled_acc`.
+Paths are relative to the repo root; `...` is `report207appendixA_all_tables_labeled_acc`. Source CSVs live in `public_data/metadata/`, matched outputs in `public_data/processed_data/`.
 
 ### Reproduce everything
 
@@ -46,7 +53,7 @@ python Water_quality_data/print_public_data_missingness.py \
 
 ## Step 1 — Download
 
-Reads `STATE` and `COUNTY` from `public_data/report207appendixA_all_tables.csv`. For each unique state/county it queries the WQP Result service twice, once per characteristic group, and saves a zipped CSV per query into `wqp_result_zips/<state FIPS>/`.
+Reads `STATE` and `COUNTY` from `public_data/metadata/report207appendixA_all_tables.csv`. For each unique state/county it queries the WQP Result service twice, once per characteristic group, and saves a zipped CSV per query into `wqp_result_zips/<state FIPS>/`.
 
 Query settings:
 
@@ -187,7 +194,7 @@ Conductivity and salinity remain high because few stations measure them at all �
 
 When new facility rows are added to the public dataset, re-run the pipeline to attach water-quality features to them. The download step is incremental, so only new counties are fetched.
 
-1. **Update both public-data CSVs.** Step 1 reads `report207appendixA_all_tables.csv` (needs `STATE`, `COUNTY`); Steps 2–3 read `report207appendixA_all_tables_labeled_acc.csv` (needs `ACC_X` latitude and `ACC_Y` longitude). New rows must appear in both, and **must have coordinates** — rows without them can never be matched.
+1. **Update both public-data CSVs** (in `public_data/metadata/`). Step 1 reads `report207appendixA_all_tables.csv` (needs `STATE`, `COUNTY`); Steps 2–3 read `report207appendixA_all_tables_labeled_acc.csv` (needs `ACC_X` latitude and `ACC_Y` longitude). New rows must appear in both, and **must have coordinates** — rows without them can never be matched.
 
 2. **Download only the new counties.** The registry makes this incremental:
 
@@ -206,8 +213,8 @@ When new facility rows are added to the public dataset, re-run the pipeline to a
 
 ### Things to watch for with new rows
 
-- **`COUNTY=none` rows.** The downloader falls back to a statewide query and the matcher falls back to statewide result zips, so these still work — but statewide zips are large. If a row's county can be inferred from its coordinates, adding it to `targeted_missing_wqp_counties.csv` and downloading that county gives a tighter, faster match.
-- **County name mismatches.** WQP county names must match after normalization. Known fixes live in `COUNTY_KEY_ALIASES` (e.g. `CA,SANTA MONICA` → Los Angeles County; `TX,Hildalgo` → Hidalgo County) and `INFERRED_COUNTY_KEY_BY_SOURCE_ROW` in `match_public_data_wqp_locations.py`. Check `public_data_wqp_unmatched.csv` after Step 1 — anything listed there needs an alias or a targeted download.
+- **`COUNTY=none` rows.** The downloader falls back to a statewide query and the matcher falls back to statewide result zips, so these still work — but statewide zips are large. If a row's county can be inferred from its coordinates, adding it to `metadata/targeted_missing_wqp_counties.csv` and downloading that county gives a tighter, faster match.
+- **County name mismatches.** WQP county names must match after normalization. Known fixes live in `COUNTY_KEY_ALIASES` (e.g. `CA,SANTA MONICA` → Los Angeles County; `TX,Hildalgo` → Hidalgo County) and `INFERRED_COUNTY_KEY_BY_SOURCE_ROW` in `match_public_data_wqp_locations.py`. Check `metadata/public_data_wqp_unmatched.csv` after Step 1 — anything listed there needs an alias or a targeted download.
 - **New analytes.** If you widen `--characteristic-names`, add the new characteristic to `ANALYTE_REGISTRY` (and, for ionic units, `EQUIVALENT_WEIGHT`) in `add_public_data_wqp_features.py`. Unregistered characteristics still export, but keep their unit in the column name instead of being merged into one analyte.
 - **The feature column set can change.** Columns are derived from the analytes actually found at matched stations, so adding rows in a new region may add or drop columns. Re-run Step 4 and diff the missingness report to see what changed.
 
@@ -228,13 +235,13 @@ When new facility rows are added to the public dataset, re-run the pipeline to a
 - `wqp_result_zips/` — raw zipped WQP result CSVs, grouped by state FIPS code
 - `wqp_station_zips/` — WQP monitoring-location metadata zips used for coordinate matching
 
-**Manifests and registries**
+**Manifests and registries** (in `metadata/`)
 
-- `public_data_wqp_manifest.csv` — one row per matched state/county search: query URL, output path, status, WQP count headers
-- `public_data_wqp_unmatched.csv` — searches that could not be matched to a WQP county code
-- `public_data_wqp_downloaded_counties.json` — registry of completed searches, used by `--skip-recorded-searches`
-- `targeted_missing_wqp_counties.csv` — coordinate-inferred county list used to recover `COUNTY=none` rows
-- `targeted_missing_wqp_manifest.csv` — manifest for those targeted recovery downloads
+- `metadata/public_data_wqp_manifest.csv` — one row per matched state/county search: query URL, output path, status, WQP count headers
+- `metadata/public_data_wqp_unmatched.csv` — searches that could not be matched to a WQP county code
+- `metadata/public_data_wqp_downloaded_counties.json` — registry of completed searches, used by `--skip-recorded-searches`
+- `metadata/targeted_missing_wqp_counties.csv` — coordinate-inferred county list used to recover `COUNTY=none` rows
+- `metadata/targeted_missing_wqp_manifest.csv` — manifest for those targeted recovery downloads
 
 **Outputs**
 

@@ -10,7 +10,7 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_INPUT = REPO_ROOT / "public_data" / "report207appendixA_all_tables_labeled_acc_wqp_features.csv"
+DEFAULT_INPUT = REPO_ROOT / "public_data" / "processed_data" / "report207appendixA_all_tables_labeled_acc_wqp_features.csv"
 
 DEFAULT_MISSING_VALUES = {
     "",

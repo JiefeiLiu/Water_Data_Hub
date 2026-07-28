@@ -1,8 +1,15 @@
 # Public Data Feature Dictionary
 
-This folder contains `report207appendixA.xlsx` and CSV files generated from it by `convert_excel_tables_to_csv.py`.
+## Folder Layout
 
-The main ML-ready file is `report207appendixA_all_tables.csv`. It combines the multiple worksheet tables into one rectangular table with one shared header row. Missing source values are written as `none`.
+- `metadata/` — the source workbook `report207appendixA.xlsx` and the CSV files generated from it by `convert_excel_tables_to_csv.py` (the raw/source public dataset).
+- `processed_data/` — the matched result tables produced by the soil and water-quality pipelines:
+  - `report207appendixA_all_tables_labeled_acc_soil_location_matches.csv` — each facility matched to its SSURGO map-unit polygon (`soil_match_mukey`, `soil_match_polygon_acres`, ...). Join `soil_match_mukey` into `Soil_data/outputs/soil_features_dimension.csv` for the soil profile.
+  - `report207appendixA_all_tables_labeled_acc_wqp_location_matches.csv` — each facility matched to nearby WQP monitoring stations.
+  - `report207appendixA_all_tables_labeled_acc_wqp_features.csv` — the public dataset with aggregated water-quality features **and** a `soil_match_mukey` column, so soil and water results are reachable from one table.
+- `convert_excel_tables_to_csv.py` — regenerates the `metadata/` CSVs from the workbook.
+
+The main ML-ready source file is `metadata/report207appendixA_all_tables.csv`. It combines the multiple worksheet tables into one rectangular table with one shared header row. Missing source values are written as `none`. `metadata/report207appendixA_all_tables_labeled_acc.csv` adds the `ACC_X`/`ACC_Y` coordinates the matching pipelines use.
 
 ## Features
 
@@ -142,7 +149,7 @@ Blank output cells in all columns are converted to `none`.
 
 ## Regenerating CSV Files
 
-Run this command from the repository root:
+The converter reads the workbook from `metadata/` and writes the source CSVs back into `metadata/`. Run from the repository root:
 
 ```bash
 python public_data/convert_excel_tables_to_csv.py

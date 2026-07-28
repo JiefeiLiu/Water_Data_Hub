@@ -19,11 +19,11 @@ from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 WATER_DATA_DIR = Path(__file__).resolve().parent
-DEFAULT_INPUT = REPO_ROOT / "public_data" / "report207appendixA_all_tables.csv"
+DEFAULT_INPUT = REPO_ROOT / "public_data" / "metadata" / "report207appendixA_all_tables.csv"
 DEFAULT_DOWNLOAD_DIR = WATER_DATA_DIR / "wqp_result_zips"
-DEFAULT_MANIFEST = WATER_DATA_DIR / "public_data_wqp_manifest.csv"
-DEFAULT_UNMATCHED = WATER_DATA_DIR / "public_data_wqp_unmatched.csv"
-DEFAULT_DOWNLOADED_SEARCHES = WATER_DATA_DIR / "public_data_wqp_downloaded_counties.json"
+DEFAULT_MANIFEST = WATER_DATA_DIR / "metadata" / "public_data_wqp_manifest.csv"
+DEFAULT_UNMATCHED = WATER_DATA_DIR / "metadata" / "public_data_wqp_unmatched.csv"
+DEFAULT_DOWNLOADED_SEARCHES = WATER_DATA_DIR / "metadata" / "public_data_wqp_downloaded_counties.json"
 DEFAULT_OUTPUT_COUNTS = WATER_DATA_DIR / "outputs" / "public_data_wqp_count_summary.csv"
 
 WQP_RESULT_SEARCH_URL = "https://www.waterqualitydata.us/data/Result/search"

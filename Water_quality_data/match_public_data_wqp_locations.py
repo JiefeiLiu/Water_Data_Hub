@@ -18,8 +18,8 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 WATER_DATA_DIR = Path(__file__).resolve().parent
-DEFAULT_INPUT = REPO_ROOT / "public_data" / "report207appendixA_all_tables_labeled_acc.csv"
-DEFAULT_OUTPUT = REPO_ROOT / "public_data" / "report207appendixA_all_tables_labeled_acc_wqp_location_matches.csv"
+DEFAULT_INPUT = REPO_ROOT / "public_data" / "metadata" / "report207appendixA_all_tables_labeled_acc.csv"
+DEFAULT_OUTPUT = REPO_ROOT / "public_data" / "processed_data" / "report207appendixA_all_tables_labeled_acc_wqp_location_matches.csv"
 DEFAULT_RESULT_DIR = WATER_DATA_DIR / "wqp_result_zips"
 DEFAULT_STATION_DIR = WATER_DATA_DIR / "wqp_station_zips"
 

@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 DATA_DIR = Path(__file__).resolve().parent
-MANIFEST_PATH = DATA_DIR / "public_data_wqp_manifest.csv"
+MANIFEST_PATH = DATA_DIR / "metadata" / "public_data_wqp_manifest.csv"
 COUNT_SUMMARY_PATH = DATA_DIR / "outputs" / "public_data_wqp_count_summary.csv"
 
 

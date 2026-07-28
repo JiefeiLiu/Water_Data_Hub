@@ -654,11 +654,14 @@ def convert_workbook(workbook_path: Path) -> list[Path]:
 
 
 def find_default_workbook(script_dir: Path) -> Path:
+    # Source workbook and its derived CSVs live in the metadata/ folder; outputs
+    # are written next to the workbook, so they land in metadata/ too.
+    search_dir = script_dir / "metadata"
     workbooks = sorted(
-        path for path in script_dir.glob("*.xlsx") if not path.name.startswith("~$")
+        path for path in search_dir.glob("*.xlsx") if not path.name.startswith("~$")
     )
     if not workbooks:
-        raise FileNotFoundError(f"No .xlsx file found in {script_dir}")
+        raise FileNotFoundError(f"No .xlsx file found in {search_dir}")
     if len(workbooks) > 1:
         names = ", ".join(path.name for path in workbooks)
         raise ValueError(f"Found multiple .xlsx files; choose one explicitly: {names}")
