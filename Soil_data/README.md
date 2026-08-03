@@ -1,162 +1,256 @@
-# Soil Data Downloads
+# Soil Data (SSURGO) Processing
 
-This directory contains soil survey data downloaded from the USDA NRCS Web Soil Survey / SSURGO public download service.
+Downloads USDA NRCS **SSURGO** soil survey data, matches each public-dataset facility to
+the soil map unit it sits on, and builds a per-`mukey` soil-feature table that links back
+to the public data by a single key.
 
-## Downloaded Dataset
+**End products:**
 
-The downloaded files are raw SSURGO soil survey zip packages. Each zip file is one SSURGO soil survey area returned by Web Soil Survey for the state and county searches derived from:
+- `public_data/processed_data/report207appendixA_all_tables_labeled_acc_soil_location_matches.csv` — each facility → its soil map unit (`soil_match_mukey`, `soil_match_polygon_acres`).
+- `outputs/soil_features_dimension.csv` — the soil profile (selected features) per map unit; join on `soil_match_mukey`.
 
-```text
-public_data/metadata/report207appendixA_all_tables.csv
+---
+
+## Pipeline Overview
+
+| # | Step | Script | Reads | Writes |
+|---|------|--------|-------|--------|
+| 1 | **Download** SSURGO zips by state/county | `download_public_data_ssurgo.py` | `public_data/metadata/report207appendixA_all_tables.csv` | `public_data_ssurgo_zips/`, `metadata/public_data_ssurgo_manifest.csv` |
+| 2 | **Match** each facility to its soil polygon | `match_public_data_soil_locations.py` | `public_data/metadata/..._labeled_acc.csv` + `public_data_ssurgo_zips/` | `public_data/processed_data/..._soil_location_matches.csv` |
+| 3 | **Build** the per-`mukey` soil-feature table | `build_soil_dimension.py` | `metadata/Selected_columns_dictionary.csv` + matched zips | `outputs/soil_features_dimension.csv` |
+
+Link the results: `soil_location_matches.soil_match_mukey → soil_features_dimension.mukey`.
+
+### Reproduce
+
+Run from the repo root. Step 1 is slow (network, ~28 GB) but incremental — it skips
+counties already downloaded.
+
+```bash
+# 1. Download SSURGO survey zips for the public dataset's state/counties
+python Soil_data/download_public_data_ssurgo.py --skip-recorded-searches
+
+# 2. Match each facility coordinate to the SSURGO map-unit polygon it falls in
+python Soil_data/match_public_data_soil_locations.py
+
+# 3. Build the per-mukey soil-feature table the matches link into
+python Soil_data/build_soil_dimension.py
 ```
 
-The downloader searches by state and county, then keeps every SSURGO result returned by Web Soil Survey. This means one source county can map to multiple downloaded soil survey area packages.
+---
 
-## Current Download Summary
+## Key Concepts (how SSURGO is organized)
 
-- Source searches: state/county combinations from `public_data/metadata/report207appendixA_all_tables.csv`
-- Source states represented in the manifest: 16
-- Matched manifest rows: 1299
-- Unique SSURGO zip packages: 1268
-- Zip files currently on disk: 1268
-- Approximate download size: 28 GB
-- Processing status: raw downloads retained, plus one combined processed centroid CSV generated from the downloaded zips
+A facility coordinate resolves to soil data through this hierarchy:
 
-## Processed Output
-
-`outputs/public_data_ssurgo_mapunit_centroid_soil_values.csv`
-
-This file combines all 1268 downloaded SSURGO zip packages into one CSV. Each data row represents one SSURGO map-unit polygon. The `longitude` and `latitude` values are polygon centroids in WGS84. Soil attributes are selected the same way as the `FL071/` example: the dominant/major representative component is selected for each map unit, then values are taken from that component's surface horizon.
-
-- Data rows: 15,096,584
-- File size: about 2.0 GB
-- Processing errors: 0
-- Error log: `outputs/public_data_ssurgo_processing_errors.csv`
-
-The processed CSV columns are:
-
-```text
-areasymbol, spatialver, longitude, latitude, musym, mukey, muname,
-component_name, component_percent_r, horizon_name, horizon_top_cm,
-horizon_bottom_cm, ph1to1h2o_r, ph01mcacl2_r, cec7_r, ecec_r,
-sumbases_r, caco3_r, gypsum_r, sar_r, pbray1_r, poxalate_r,
-ph2osoluble_r, ptotal_r
+```
+facility coordinate
+  └─ point-in-polygon → soil map-unit POLYGON      ← the mapped LOCATION (one delineation)
+        └─ its mukey → MAP UNIT                     ← a soil TYPE / class (the polygon's label)
+              └─ COMPONENTS (as % area)             ← the soil types in that map unit
+                    └─ HORIZONS (depth layers)      ← where the property values live
 ```
 
-## Feature Name Explanations
+- A **map unit** (`mukey`) is a soil *type*, not a place. The same map unit is drawn as many
+  **polygons** (locations) across a survey area. `mukey` is nationally unique.
+- A map unit bundles several **components** (soil types) as **area percentages with no internal
+  geography** — so at a point we know the map unit exactly, but not which component underfoot.
+- Each component has multiple **horizons** (depth layers), each with its own chemistry.
 
-| Feature name | Meaning | Unit / notes |
-| --- | --- | --- |
-| `areasymbol` | Soil survey area symbol for the SSURGO package that supplied the row. | Text identifier |
-| `spatialver` | Spatial data version from the SSURGO map-unit polygon layer. | Version number |
-| `longitude` | Longitude of the map-unit polygon centroid. | Decimal degrees, WGS84 |
-| `latitude` | Latitude of the map-unit polygon centroid. | Decimal degrees, WGS84 |
-| `musym` | Map-unit symbol used to identify the soil map unit within the survey area. | Text identifier |
-| `mukey` | Map-unit key, the unique SSURGO identifier for the map-unit record. | Text/numeric identifier |
-| `muname` | Map-unit name, such as the named soil complex and slope class. | Text |
-| `component_name` | Name of the selected representative soil component within the map unit. | Text |
-| `component_percent_r` | Representative percentage of the selected component within the map unit. | Percent |
-| `horizon_name` | SSURGO horizon designation for the selected surface horizon, such as `A`, `A1`, `E`, or `Bw`. | Text |
-| `horizon_top_cm` | Representative depth from the soil surface to the top of the selected horizon. | Centimeters |
-| `horizon_bottom_cm` | Representative depth from the soil surface to the bottom of the selected horizon. | Centimeters |
-| `ph1to1h2o_r` | Representative soil pH measured using the 1:1 soil-water method. | pH scale |
-| `ph01mcacl2_r` | Representative soil pH measured using the 0.01M calcium chloride method. | pH scale |
-| `cec7_r` | Representative cation-exchange capacity at pH 7. Indicates the soil's ability to hold exchangeable cations. | Milliequivalents per 100 grams |
-| `ecec_r` | Representative effective cation-exchange capacity. Calculated as extractable bases plus extractable aluminum. | Milliequivalents per 100 grams |
-| `sumbases_r` | Representative sum of extractable base cations, including calcium, magnesium, potassium, and sodium. | Milliequivalents per 100 grams |
-| `caco3_r` | Representative calcium carbonate equivalent in the soil fine fraction. | Percent |
-| `gypsum_r` | Representative gypsum content in the soil. | Percent |
-| `sar_r` | Representative sodium adsorption ratio. Describes sodium relative to calcium and magnesium in the soil-water extract. | Ratio |
-| `pbray1_r` | Representative Bray 1 extractable phosphorus, often used as a plant-available phosphorus estimate. | Milligrams per kilogram |
-| `poxalate_r` | Representative ammonium oxalate extractable phosphorus. | Milligrams per kilogram |
-| `ph2osoluble_r` | Representative water-soluble phosphorus. | Milligrams per kilogram |
-| `ptotal_r` | Representative total phosphorus content. | Percent |
+Consequence: one facility → one polygon → **many soil rows** (every component × horizon).
 
-SSURGO column suffixes often use `_r`, `_l`, and `_h` for representative, low, and high values. This processed output keeps representative values only, so columns ending in `_r` should be interpreted as typical values for the selected component and surface horizon.
+---
 
-Blank cells mean the attribute was not populated in the original SSURGO tabular data for that map unit, component, or horizon.
+## Step 1 — Download
+
+Reads state/county from `public_data/metadata/report207appendixA_all_tables.csv`, searches
+Web Soil Survey for each, and keeps every SSURGO survey-area zip returned. One source county
+can map to several survey-area packages.
+
+- Source states: 16 · matched manifest rows: 1,299 · unique SSURGO zip packages: **1,268** (~28 GB on disk)
+- `metadata/public_data_ssurgo_downloaded_counties.json` records completed searches so
+  `--skip-recorded-searches` resumes without re-downloading.
+- One search did not match a WSS county: `CA, SANTA MONICA`.
+
+Every survey shares an identical 68-table tabular schema, so extraction logic is uniform
+across all 1,268 packages.
+
+```bash
+python Soil_data/download_public_data_ssurgo.py --skip-recorded-searches   # incremental download
+python Soil_data/download_public_data_ssurgo.py --registry-from-manifest   # rebuild the registry offline
+```
+
+---
+
+## Step 2 — Match To Public Data
+
+`match_public_data_soil_locations.py` links each facility to the soil beneath it.
+
+- **Input coordinates:** `ACC_X` = latitude, `ACC_Y` = longitude (same columns as the water pipeline).
+- **Candidate surveys:** chosen by the facility's state/county via `metadata/public_data_ssurgo_manifest.csv`.
+- **Primary match — point in polygon:** finds the SSURGO map-unit polygon that *contains* the
+  coordinate and takes that polygon's `mukey`. Because SSURGO polygons tile the landscape with
+  no gaps, this is authoritative (distance 0), not a nearest-neighbor guess.
+- **Fallback — nearest centroid:** if no polygon contains the point (e.g. a coordinate just off
+  the surveyed area), it takes the nearest map-unit-polygon centroid within `--max-nearest-km`
+  (default 10 km); beyond that the row is left unmatched.
+- **Confidence column:** `soil_match_polygon_acres` — the area of the matched delineation.
+  SSURGO polygons range from < 3 to > 90,000 acres, so a small polygon is a far more local match
+  than a huge one.
+
+Output columns (appended to the public data):
+
+```text
+soil_match_status, soil_match_method, soil_match_distance_km, soil_match_area_symbol,
+soil_match_folder, soil_match_zip, soil_match_mukey, soil_match_musym,
+soil_match_longitude, soil_match_latitude, soil_match_polygon_acres, soil_match_note
+```
+
+Current results (86 public rows):
+
+- **Matched: 75** — 74 by containing polygon, 1 by nearest centroid
+- Unmatched: 8 missing coordinates, 2 nearest polygon > 10 km, 1 with no downloaded survey
+- 75 matches span **69 unique map units** across **58 survey areas**; polygon areas 2.7 – 94,085 acres
+
+```bash
+python Soil_data/match_public_data_soil_locations.py                 # default 10 km fallback
+python Soil_data/match_public_data_soil_locations.py --max-nearest-km 5
+```
+
+---
+
+## Step 3 — Build The Soil-Feature Table
+
+`build_soil_dimension.py` produces the reusable soil "library" the matches link into.
+
+- Reads the expert-selected columns from `metadata/Selected_columns_dictionary.csv` and the
+  survey zips referenced by the match file (so it covers exactly the map units the plants need).
+- Emits **one row per `(mukey × component × horizon)`**, keyed by `mukey` (+ `cokey`, `chkey`),
+  combined across surveys. Because `mukey` is nationally unique, rows from different surveys
+  never collide.
+- **Every component is emitted, not just the dominant one.** Many "Urban land–…" complexes have
+  an empty dominant component but a minor component that carries the real chemistry, so keeping
+  all of them avoids silently returning blanks.
+- **Confidence column:** `component_percent` (`comppct_r`) — the map-unit share of the soil type
+  in that row.
+- Also carries soil-type identity (`compname`, `compkind`, `taxorder … taxclname`) alongside the
+  selected features.
+
+Current table: **63,870 rows**, **5,205 unique map units**, 176 columns.
+
+```bash
+python Soil_data/build_soil_dimension.py
+```
+
+`extract_soil_selected_features.py` is a related per-survey variant: it writes one row per
+`(polygon × component × horizon)` for a single unpacked survey folder, adding `polygon_acres`
+and centroid coordinates — handy for exploring one survey with its geometry attached.
+
+---
+
+## Linking Soil Features To A Facility
+
+The design is a **foreign-key link**, so no soil detail is flattened away:
+
+```
+soil_location_matches.csv                        soil_features_dimension.csv
+  facility row                                     mukey, cokey, chkey,
+  soil_match_mukey  ───────────────────────────►   compname, component_percent,
+  soil_match_polygon_acres                          horizon depths, pH, SAR, CEC, texture, ...
+```
+
+To pull a facility's soil profile, filter the dimension where `mukey == soil_match_mukey`.
+Expect **many rows** per facility (all components × horizons of its map unit). Collapse them
+however the model needs — e.g. the best data-bearing component's surface horizon, or a
+percent-/depth-weighted summary — using `component_percent` and the horizon depths.
+
+The public-data water-quality file also carries `soil_match_mukey` (added by
+`public_data/link_soil_key_to_wqp_features.py`), so soil and water results are reachable from
+one table.
+
+---
+
+## Selected Features And Column Dictionary
+
+- `metadata/Selected_columns_dictionary.csv` — the expert-chosen feature columns (164 columns
+  across `component`, `chorizon`, `chfrags`, `chpores`, `chstructgrp`, `chtexture`, `comonth`,
+  `cocanopycover`) that Step 3 extracts.
+- Per-survey column dictionary — `extract_ssurgo_column_dictionary.py` flattens each survey's
+  `mstabcol.txt`/`msdomdet.txt` into a readable `_columns_dictionary.csv` (label, units, valid
+  range, coded values, description) so every feature name is explained.
+- Per-survey tabular CSVs — `convert_fl071_tabular_to_csv.py --base-dir <survey>` converts a
+  survey's 68 tabular `.txt` tables to clean CSVs plus a `_tables_index.csv` summary.
+
+---
+
+## Legacy Centroid Export
+
+`outputs/public_data_ssurgo_mapunit_centroid_soil_values.csv` is an earlier one-row-per-polygon
+summary (dominant component's surface horizon, representative values only), generated by
+`extract_public_data_ssurgo.py` across all 1,268 zips (15,096,584 rows, ~2.0 GB). It predates the
+selected-feature/`mukey`-linked design and picks the *dominant* component, so it can return
+blanks where the dominant component has no horizon data. Prefer the Step 3 dimension for
+modeling; this file remains for the broad centroid summary.
+
+Its columns: `areasymbol, spatialver, longitude, latitude, musym, mukey, muname, component_name,
+component_percent_r, horizon_name, horizon_top_cm, horizon_bottom_cm, ph1to1h2o_r, ph01mcacl2_r,
+cec7_r, ecec_r, sumbases_r, caco3_r, gypsum_r, sar_r, pbray1_r, poxalate_r, ph2osoluble_r, ptotal_r`.
+
+SSURGO column suffixes `_l`/`_r`/`_h` are low/representative/high values; this legacy file keeps
+`_r` only. Blank cells mean the attribute was unpopulated in the source SSURGO data.
 
 ## Full Database Export
 
-The centroid CSV above is an analysis-ready summary, not the full SSURGO database. To preserve every available SSURGO table and feature while feature selection is still undecided, the extraction scripts now support a full-database export mode.
-
-For the FL071 sample folder:
-
-```bash
-python Soil_data/extract_fl071_soil_values.py --full-database --replace
-```
-
-This writes:
-
-```text
-Soil_data/FL071/outputs/full_database/
-```
-
-The FL071 validation run exported 74 CSV tables:
-
-- `tabular/*.csv`: every SSURGO tabular text table with metadata-derived column names
-- `spatial/*.csv`: every spatial DBF attribute table, such as `soilmu_a.csv`
-- `_export_manifest.csv`: row and column counts for each exported table
-
-For all downloaded public-data SSURGO zip packages:
+To preserve every SSURGO table while feature selection evolves, the extractors support a
+full-database mode (metadata-derived column names, all tabular + spatial DBF tables):
 
 ```bash
-python Soil_data/extract_public_data_ssurgo.py --full-database --replace
+python Soil_data/extract_fl071_soil_values.py --full-database --replace     # one sample survey -> FL071/outputs/full_database/
+python Soil_data/extract_public_data_ssurgo.py --full-database --replace     # all zips -> outputs/public_data_ssurgo_full_database/
 ```
 
-This writes combined table-level CSVs to:
+The all-zip export combines same-named tables across surveys and adds `source_areasymbol`,
+`source_path`, and `survey_root` for traceability. It does not convert full shapefile geometry to
+CSV; the original shapefiles remain in the survey `spatial/` folders for spatial joins.
 
-```text
-Soil_data/outputs/public_data_ssurgo_full_database/
-```
-
-The all-zip full export combines same-named SSURGO tables across survey areas and adds `source_areasymbol`, `source_path`, and `survey_root` columns so each row can be traced back to its source zip package. A one-zip smoke test exported 74 tables and about 133 MB, so the full 1268-zip export may be very large.
-
-Note: the full-database CSV export includes SSURGO tabular tables and spatial DBF attribute tables. It does not convert full shapefile geometry to CSV. The original polygon/line/point shapefiles remain in `FL071/spatial/` and inside `public_data_ssurgo_zips/` for spatial joins.
+---
 
 ## Files And Directories
 
-- `public_data_ssurgo_zips/`: downloaded raw SSURGO zip files, grouped by survey area symbol
-- `metadata/public_data_ssurgo_manifest.csv`: manifest of every matched Web Soil Survey result, including source state/county, matched county, area symbol, zip filename, local path, download status, and source URL
-- `metadata/public_data_ssurgo_unmatched.csv`: searches that did not match a county in Web Soil Survey
-- `metadata/public_data_ssurgo_downloaded_counties.json`: compact registry of completed state/county SSURGO searches, including the survey-area zip files returned by each search
-- `metadata/Selected_columns_dictionary.csv`: expert-selected feature columns used by `extract_soil_selected_features.py` and `build_soil_dimension.py`
-- `outputs/soil_features_dimension.csv`: per-`mukey` soil feature table (one row per `mukey` × component × horizon). Plants link to it via `soil_match_mukey` in `public_data/processed_data/report207appendixA_all_tables_labeled_acc_soil_location_matches.csv`
-- `download_public_data_ssurgo.py`: batch downloader used for the public-data state/county searches
-- `download_ssurgo.py`: helper downloader for individual SSURGO zip packages
-- `extract_public_data_ssurgo.py`: batch extractor used to generate the combined processed centroid CSV
-- `ssurgo_full_database.py`: shared helper used by the full-database export modes
-- `outputs/public_data_ssurgo_mapunit_centroid_soil_values.csv`: combined processed CSV for all downloaded SSURGO zip packages
-- `outputs/public_data_ssurgo_processing_errors.csv`: archive-level processing error log
-- `FL071/`: previously extracted/downloaded SSURGO data for survey area `FL071`
+**Scripts (pipeline order)**
 
-## Avoiding Duplicate County Downloads
+- `download_public_data_ssurgo.py` — Step 1: batch downloader for the state/county searches
+- `match_public_data_soil_locations.py` — Step 2: point-in-polygon matcher (adds `soil_match_mukey`, `soil_match_polygon_acres`)
+- `build_soil_dimension.py` — Step 3: per-`mukey` selected-feature table
+- `soil_feature_builder.py` — shared builder used by Steps 3 and the per-survey extractor
+- `extract_soil_selected_features.py` — per-survey, per-polygon selected features (with geometry)
+- `extract_ssurgo_column_dictionary.py`, `convert_fl071_tabular_to_csv.py` — per-survey CSV + column-dictionary helpers
+- `extract_public_data_ssurgo.py` — legacy centroid export / full-database export
+- `download_ssurgo.py`, `ssurgo_full_database.py` — single-area downloader and shared zip helpers
 
-`metadata/public_data_ssurgo_downloaded_counties.json` records the state/county searches that have already been downloaded. It stores normalized `source_search_key` and `matched_search_key` values so future downloader runs can skip counties that are already complete, even when the input uses slightly different capitalization or a matched WSS county name.
+**Data**
 
-To extend the public data later and skip completed searches, run:
+- `public_data_ssurgo_zips/` — downloaded raw SSURGO zips, grouped by survey-area symbol
+- `FL071/`, `CA696/` — unpacked sample survey areas (with `tabular_csv/`, `_columns_dictionary.csv`)
 
-```bash
-python Soil_data/download_public_data_ssurgo.py --skip-recorded-searches
-```
+**metadata/**
 
-To rebuild the JSON registry from the current manifest without contacting Web Soil Survey, run:
+- `public_data_ssurgo_manifest.csv` — every matched WSS result: source/matched county, area symbol, zip path, status, URL
+- `public_data_ssurgo_unmatched.csv` — searches with no WSS county match
+- `public_data_ssurgo_downloaded_counties.json` — completed-search registry for `--skip-recorded-searches`
+- `Selected_columns_dictionary.csv` — expert-selected feature columns for Step 3
 
-```bash
-python Soil_data/download_public_data_ssurgo.py --registry-from-manifest
-```
+**outputs/**
 
-## Unmatched Search
+- `soil_features_dimension.csv` — per-`mukey` selected-feature table (Step 3 product)
+- `public_data_ssurgo_mapunit_centroid_soil_values.csv` — legacy centroid export
+- `public_data_ssurgo_processing_errors.csv` — legacy export error log
 
-One source search did not match a Web Soil Survey county:
-
-```text
-CA,SANTA MONICA,county not found in Web Soil Survey
-```
+---
 
 ## Data Source
 
-The data comes from USDA NRCS SSURGO through the Web Soil Survey download service:
+USDA NRCS SSURGO via the Web Soil Survey download service:
 
 - https://websoilsurvey.sc.egov.usda.gov/DSD/Download/help
 - https://www.nrcs.usda.gov/resources/data-and-reports/soil-survey-geographic-database-ssurgo
