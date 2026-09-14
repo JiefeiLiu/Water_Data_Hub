@@ -130,11 +130,17 @@ Aggregates WQP results into **one column set per analyte** and appends them to t
 
 2. **`--aggregate-nearby` (recommended).** Pools results from *every* station within the match radius instead of only the single matched station. Chemistry lives at major-ion stations and physical parameters often live at separate nearby monitoring sites, so pooling populates both for the same point.
 
+3. **`--recent-years N` recency window (default 30).** Only results from the last N years (by `ActivityStartDate`) are aggregated, so features reflect *recent* water quality rather than the full multi-decade record (WQP data reaches back to the early 1900s). Undated results are kept. Use `--recent-years 0` for all history. With the default 30-year window, analytes whose data predates the window drop out entirely (e.g. `sodium plus potassium`, last sampled 1980).
+
 ```bash
-# Recommended: pool all stations within the radius
+# Recommended: pool all stations within the radius, last 30 years
 python Water_quality_data/add_public_data_wqp_features.py --aggregate-nearby
 
-# Single matched station only (default)
+# A different window, or the full multi-decade record
+python Water_quality_data/add_public_data_wqp_features.py --aggregate-nearby --recent-years 15
+python Water_quality_data/add_public_data_wqp_features.py --aggregate-nearby --recent-years 0
+
+# Single matched station only (default station selection)
 python Water_quality_data/add_public_data_wqp_features.py
 
 # Legacy layout: one column set per (characteristic, fraction, unit), no unit conversion
@@ -145,7 +151,7 @@ Columns generated per analyte:
 
 `result_count`, `activity_count`, `numeric_count`, `nondetect_count`, `unconvertible_count`, `mean`, `min`, `median`, `max`, `latest_value`, `latest_date`, `first_date`, `last_date`
 
-**Dates are retained per analyte** (`first_date` / `last_date` / `latest_date`) plus per row (`wqp_feature_first_sample_date` / `wqp_feature_last_sample_date`). In `--aggregate-nearby` mode a `mean`/`min`/`max` summarizes the whole neighborhood over that date range — sometimes spanning decades — so use the date columns to judge temporal validity or to build date-windowed features.
+**Dates are retained per analyte** (`first_date` / `last_date` / `latest_date`) plus per row (`wqp_feature_first_sample_date` / `wqp_feature_last_sample_date`). With the default 30-year window these dates fall inside the window; a `mean`/`min`/`max` still summarizes the whole neighborhood over that span, so use the date columns to judge temporal validity or narrow the window further.
 
 `outputs/public_data_wqp_feature_manifest.csv` maps each feature stem back to its target unit, source characteristic names, merged fractions, and source units.
 
@@ -164,29 +170,29 @@ Writes one row per column: `column`, `missing_count`, `total_count`, `missing_pe
 
 ## Current Results
 
-Produced by the reproduce block above (`--aggregate-nearby`):
+Produced by the reproduce block above (`--aggregate-nearby`, default 30-year window):
 
 - Input rows: **86**
 - Matched rows within 10 km: **69** (63 to a major-ion-chemistry station, 6 physical-only fallback)
-- Analyte groups: **12**; WQP feature columns added: **162**
+- Analyte groups: **11**; WQP feature columns added: **149** (`sodium plus potassium` drops out — no data in the last 30 years)
 - Unmatched: 8 rows missing coordinates, 4 rows with nearest station >10 km, 5 rows with no candidate WQP data
 
-Missing-value rates after processing. The ~20% floor is the 17 rows that cannot be matched at all (8 missing coordinates + 4 too far + 5 no candidate data), so most analytes are now at or near the best achievable rate:
+Missing-value rates after processing. The ~23% floor is the 17 rows that cannot be matched at all (8 missing coordinates + 4 too far + 5 no candidate data), plus a little more where a matched neighborhood has no result for that analyte within the 30-year window:
 
 | Analyte | Kind | Missing% |
 |---|---|---|
-| pH | physical | 19.8% |
-| specific conductance | physical | 20.9% |
-| temperature | physical | 20.9% |
-| total dissolved solids | chemical | 20.9% |
-| calcium | chemical | 22.1% |
-| magnesium | chemical | 22.1% |
-| sodium | chemical | 22.1% |
-| turbidity | physical | 26.7% |
+| pH | physical | 23.3% |
+| total dissolved solids | chemical | 24.4% |
+| specific conductance | physical | 25.6% |
+| temperature | physical | 26.7% |
+| turbidity | physical | 27.9% |
+| calcium | chemical | 29.1% |
+| magnesium | chemical | 29.1% |
+| sodium | chemical | 29.1% |
 | conductivity | physical | 57.0% |
-| salinity | physical | 61.6% |
+| salinity | physical | 62.8% |
 
-Conductivity and salinity remain high because few stations measure them at all — that is a data-availability limit, not a pipeline gap.
+Missingness is a few points higher than with the full record because the 30-year window trims older results. Conductivity and salinity remain high because few stations measure them at all — a data-availability limit, not a pipeline gap.
 
 ---
 

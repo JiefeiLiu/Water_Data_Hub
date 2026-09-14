@@ -337,6 +337,7 @@ class CharacteristicAgg:
 @dataclass
 class StationAgg:
     merge_analytes: bool = True
+    min_date: str = ""  # ISO date; results dated before this are dropped (recency window)
     characteristics: dict[str, CharacteristicAgg] = field(default_factory=dict)
     result_rows: int = 0
     activity_ids: set[str] = field(default_factory=set)
@@ -348,11 +349,16 @@ class StationAgg:
         if classification is None:
             return
 
+        sample_date = normalize_date(row.get("ActivityStartDate") or "")
+        # Recency window: drop results older than min_date. Undated results are
+        # kept (their recency cannot be confirmed either way).
+        if self.min_date and sample_date and sample_date < self.min_date:
+            return
+
         self.result_rows += 1
         activity_id = (row.get("ActivityIdentifier") or "").strip()
         if activity_id:
             self.activity_ids.add(activity_id)
-        sample_date = normalize_date(row.get("ActivityStartDate") or "")
         if sample_date:
             if not self.first_date or sample_date < self.first_date:
                 self.first_date = sample_date
@@ -480,13 +486,13 @@ def wanted_station_sources(rows: list[dict[str, str]], aggregate_nearby: bool) -
 
 
 def collect_station_features(
-    wanted: dict[Path, set[str]], merge_analytes: bool
+    wanted: dict[Path, set[str]], merge_analytes: bool, min_date: str = ""
 ) -> dict[tuple[Path, str], StationAgg]:
     features: dict[tuple[Path, str], StationAgg] = {}
     for index, (zip_path, station_ids) in enumerate(sorted(wanted.items()), start=1):
         print(f"[{index}/{len(wanted)}] Scanning {zip_path.name} for {len(station_ids)} matched station(s)", flush=True)
         for station_id in station_ids:
-            features[(zip_path, station_id)] = StationAgg(merge_analytes=merge_analytes)
+            features[(zip_path, station_id)] = StationAgg(merge_analytes=merge_analytes, min_date=min_date)
         for row in iter_zip_csv_rows(zip_path):
             station_id = (row.get("MonitoringLocationIdentifier") or "").strip()
             if station_id not in station_ids:
@@ -622,7 +628,28 @@ def parse_args() -> argparse.Namespace:
             "only the single matched station, so physical and chemical features are pooled across nearby stations"
         ),
     )
+    parser.add_argument(
+        "--recent-years",
+        type=int,
+        default=30,
+        help=(
+            "Only aggregate WQP results from the last N years (by ActivityStartDate), so features reflect recent "
+            "water quality rather than the full multi-decade record. Use 0 to include all history. Default: 30"
+        ),
+    )
     return parser.parse_args()
+
+
+def recency_cutoff(recent_years: int) -> str:
+    """ISO date N years before today; empty string when recent_years <= 0 (no filter)."""
+    if recent_years <= 0:
+        return ""
+    today = dt.date.today()
+    try:
+        cutoff = today.replace(year=today.year - recent_years)
+    except ValueError:  # Feb 29 in a non-leap target year
+        cutoff = today.replace(year=today.year - recent_years, day=28)
+    return cutoff.isoformat()
 
 
 def main() -> int:
@@ -633,7 +660,12 @@ def main() -> int:
     print(f"Loaded {len(rows)} input rows; {sum(len(v) for v in wanted.values())} station/source pairs requested", flush=True)
     if args.aggregate_nearby:
         print("Aggregating features across all WQP stations within the match radius", flush=True)
-    features = collect_station_features(wanted, merge_analytes)
+    min_date = recency_cutoff(args.recent_years)
+    if min_date:
+        print(f"Recency window: keeping results on/after {min_date} (last {args.recent_years} years)", flush=True)
+    else:
+        print("Recency window: including all history (no date filter)", flush=True)
+    features = collect_station_features(wanted, merge_analytes, min_date)
     groups = all_feature_groups(features)
     stems = sorted(groups)
     feature_columns = make_feature_columns(stems)
