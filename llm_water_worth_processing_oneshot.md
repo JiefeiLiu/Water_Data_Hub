@@ -136,6 +136,51 @@ SOURCE WATER QUALITY  (aggregate of 733 WQP stations within ~10 km, 1946–2025,
 ASSESSMENT:
 ```
 
+## Ground Truth (held out — for evaluation only, NOT part of the prompt)
+
+The target site (row 26, North Cape Coral RO WTP) is a real, operating plant, so its actual
+data is the ground truth to compare against the LLM's `ASSESSMENT`. These include the
+operational fields withheld from the blind prompt. **Do not include this block in the prompt.**
+
+```text
+GROUND TRUTH — North Cape Coral RO WTP (row 26), Cape Coral, Lee County, FL
+  Verdict:              WORTH PROCESSING — the plant was built and has operated since 2010
+  Process:              reverse osmosis (brackish-water RO)
+  Purpose:              drinking water | Source: groundwater
+  Raw water TDS:        ~2,700 mg/L
+  Capacity:             12 MGD max / 12 MGD desal design; 8.5 MGD average plant production
+  Recovery:             80%
+  Feed pressure:        160 psi
+  Pre-treatment:        acid, antiscalant, cartridge filters
+  Blending:             yes — 15–25% raw bypass
+  Permeate TDS:         100–118 mg/L
+  Post-treatment:       blend, degasification, chlorine (disinfection + residual H2S
+                        removal), caustic (pH adjustment)
+  Concentrate:          deep well injection (neutralized first)
+  Cleaning waste:       neutralization, deep well injection
+  Membranes:            original membranes still in service
+```
+
+For reference, the exemplar plant (row 18, City of Hialeah RO WTP) is also shown blind in the
+prompt; its worked answer recommends BWRO at ~75–85% recovery. In reality it runs
+brackish-water RO at 80% recovery, 180–194 psi feed pressure, with acid, antiscalant, and
+cartridge filters, no blending, lime/caustic/chlorine post-treatment, and deep well injection.
+The target's real design is very close to the exemplar's, so a model that follows the exemplar
+will land near the truth here.
+
+Compare the LLM output to the ground truth on:
+
+| Output item | What to check against the ground truth |
+|---|---|
+| VERDICT | Should be "Worth processing" (the plant exists and runs at 8.5 MGD). |
+| RECOMMENDED PROCESS | Brackish-water RO at roughly 80% recovery. |
+| KEY REASONS | Brackish feed (~2,700 mg/L) suits BWRO; deep-well injection available for concentrate. |
+| RISKS & CAVEATS | Scaling control (the real plant uses acid + antiscalant); H2S (real plant degasifies). |
+
+Caveat: every row in the dataset is an operating plant, so the verdict is always "Worth
+processing". The verdict alone cannot tell a good model from one that always says yes; the
+process and recovery comparison is the more informative test.
+
 ## Notes
 
 - The exemplar's ASSESSMENT block is a *worked positive answer*; it teaches the model the

@@ -96,6 +96,44 @@ Base your reasoning only on the information above. Where the data is ambiguous o
 sparse (small n), say so rather than guessing.
 ```
 
+## Ground Truth (held out — for evaluation only, NOT part of the prompt)
+
+The query site (row 26, North Cape Coral RO WTP) is a real, operating plant, so its actual
+data is the ground truth to compare against the LLM's answer. These include the operational
+fields withheld from the blind prompt. **Do not include this block in the prompt.**
+
+```text
+GROUND TRUTH — North Cape Coral RO WTP (row 26), Cape Coral, Lee County, FL
+  Verdict:              WORTH PROCESSING — the plant was built and has operated since 2010
+  Process:              reverse osmosis (brackish-water RO)
+  Purpose:              drinking water | Source: groundwater
+  Raw water TDS:        ~2,700 mg/L
+  Capacity:             12 MGD max / 12 MGD desal design; 8.5 MGD average plant production
+  Recovery:             80%
+  Feed pressure:        160 psi
+  Pre-treatment:        acid, antiscalant, cartridge filters
+  Blending:             yes — 15–25% raw bypass
+  Permeate TDS:         100–118 mg/L
+  Post-treatment:       blend, degasification, chlorine (disinfection + residual H2S
+                        removal), caustic (pH adjustment)
+  Concentrate:          deep well injection (neutralized first)
+  Cleaning waste:       neutralization, deep well injection
+  Membranes:            original membranes still in service
+```
+
+Compare the LLM output to the ground truth on:
+
+| Output item | What to check against the ground truth |
+|---|---|
+| VERDICT | Should be "Worth processing" (the plant exists and runs at 8.5 MGD). |
+| RECOMMENDED PROCESS | Brackish-water RO at roughly 80% recovery. |
+| KEY REASONS | Brackish feed (~2,700 mg/L) suits BWRO; deep-well injection available for concentrate. |
+| RISKS & CAVEATS | Scaling control (the real plant uses acid + antiscalant); H2S (real plant degasifies). |
+
+Caveat: every row in the dataset is an operating plant, so the verdict is always "Worth
+processing". The verdict alone cannot tell a good model from one that always says yes; the
+process and recovery comparison is the more informative test.
+
 ## Notes
 
 - Numbers are rounded for readability; the source CSV holds full precision.
